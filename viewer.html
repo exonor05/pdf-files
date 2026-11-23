@@ -1,206 +1,603 @@
+
 <!doctype html>
 <html lang="ru">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Просмотр документа</title>
-  <style>
-    :root { color-scheme: light; font-family: Arial, Helvetica, sans-serif; }
-    * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: #f3f3f3; }
-    body { display: flex; flex-direction: column; overflow: hidden; }
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Просмотр документа</title>
+
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    font-family: Arial, sans-serif;
+    background: #eeeeee;
+  }
+
+  body {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .toolbar {
+    display: flex;
+    flex-shrink: 0;
+    justify-content: center;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+    background: #fff;
+    border-bottom: 1px solid #ddd;
+  }
+
+  .toolbar button {
+    min-width: 38px;
+    height: 38px;
+    padding: 0 10px;
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    color: #171717;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .toolbar button:disabled {
+    opacity: .4;
+    cursor: default;
+  }
+
+  #pageCounter,
+  #zoomValue {
+    font-size: 13px;
+    white-space: nowrap;
+  }
+
+  #viewer {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  #pages {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: max-content;
+    min-width: 100%;
+    margin: 0 auto;
+    padding: 14px;
+  }
+
+  .pdf-page {
+    flex: none;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #fff;
+    box-shadow: 0 2px 12px rgba(0,0,0,.15);
+    color: #888;
+    font-size: 13px;
+    overflow: hidden;
+  }
+
+  .pdf-page canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #message {
+    padding: 35px 15px;
+    text-align: center;
+    line-height: 1.5;
+    color: #444;
+  }
+
+  #downloadPanel {
+    display: none;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 25px;
+    text-align: center;
+  }
+
+  #downloadLink {
+    padding: 15px 28px;
+    background: #0C3294;
+    color: #fff;
+    text-decoration: none;
+    border-radius: 7px;
+    font-weight: 600;
+  }
+
+  body.downloading .toolbar,
+  body.downloading #viewer {
+    display: none;
+  }
+
+  body.downloading #downloadPanel {
+    display: flex;
+  }
+
+  @media (max-width: 640px) {
     .toolbar {
-      display: flex; justify-content: center; align-items: center; gap: 8px;
-      flex-wrap: wrap; flex-shrink: 0; padding: 8px 10px;
-      background: #fff; border-bottom: 1px solid #ddd;
+      gap: 7px;
+      padding: 8px 5px;
     }
-    .toolbar button, .toolbar a {
-      display: inline-flex; justify-content: center; align-items: center;
-      min-width: 40px; min-height: 40px; border: 1px solid #ddd;
-      background: #fff; border-radius: 7px; color: #171717;
-      font: 600 16px Arial, sans-serif; text-decoration: none; cursor: pointer;
-      touch-action: manipulation;
+
+    .toolbar button {
+      min-width: 34px;
+      height: 36px;
+      padding: 0 8px;
+      font-size: 13px;
     }
-    .toolbar button:disabled { opacity: .35; cursor: default; }
-    .toolbar .page-counter { min-width: 75px; font-size: 13px; text-align: center; }
-    .toolbar a { padding: 0 12px; font-size: 13px; }
-    #viewer {
-      flex: 1; min-height: 0; overflow: auto;
-      overscroll-behavior: contain; text-align: center;
-      -webkit-overflow-scrolling: touch;
+
+    #pages {
+      gap: 10px;
+      padding: 8px;
     }
-    #pageCanvas {
-      display: block; max-width: none; margin: 12px auto 24px;
-      background: #fff; box-shadow: 0 2px 12px rgba(0,0,0,.15);
-    }
-    #message { padding: 40px 15px; color: #444; font-size: 15px; line-height: 1.5; }
-    [hidden] { display: none !important; }
-    @media (max-width: 450px) {
-      .toolbar { gap: 5px; padding: 6px; }
-      .toolbar button { min-width: 35px; min-height: 38px; }
-      .toolbar .page-counter { min-width: 65px; }
-      .toolbar a { min-height: 38px; padding: 0 8px; }
-    }
-  </style>
+  }
+</style>
 </head>
+
 <body>
-  <nav class="toolbar" aria-label="Управление документом">
-    <button id="prevPage" aria-label="Предыдущая страница" disabled>‹</button>
-    <span class="page-counter" id="pageCounter">— / —</span>
-    <button id="nextPage" aria-label="Следующая страница" disabled>›</button>
-    <button id="zoomOut" aria-label="Уменьшить" disabled>−</button>
-    <button id="zoomIn" aria-label="Увеличить" disabled>+</button>
-    <a id="openFile" href="#" target="_blank" rel="noopener">Скачать ↗</a>
-  </nav>
-  <main id="viewer">
-    <div id="message" role="status">Загружаем документ…</div>
-    <canvas id="pageCanvas" hidden aria-label="Страница документа"></canvas>
-  </main>
 
-  <script>
-    // Допускаем только PDF-файлы из того же каталога, где находится viewer.html.
-    const file = new URLSearchParams(location.search).get('file') || '';
-    const validFile = /^[a-zA-Z0-9._,-]+\.pdf$/i.test(file) && !file.includes('..');
-    const fileUrl = validFile ? new URL(encodeURIComponent(file), location.href).href : '';
-    document.getElementById('openFile').href = validFile ? fileUrl : '#';
-    if (!validFile) document.getElementById('message').textContent = 'Неверное имя PDF-файла.';
-  </script>
+<nav class="toolbar" aria-label="Управление документом">
+  <span id="pageCounter">Стр. — / —</span>
 
-  <script type="module">
-    import * as pdfjsLib from 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs';
+  <button id="zoomOut" disabled aria-label="Уменьшить">
+    −
+  </button>
 
-    pdfjsLib.GlobalWorkerOptions.workerSrc =
-      'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
+  <span id="zoomValue">100%</span>
 
-    if (validFile) {
-      const viewer = document.getElementById('viewer');
-      const canvas = document.getElementById('pageCanvas');
-      const message = document.getElementById('message');
-      const counter = document.getElementById('pageCounter');
-      const prev = document.getElementById('prevPage');
-      const next = document.getElementById('nextPage');
-      const zoomOut = document.getElementById('zoomOut');
-      const zoomIn = document.getElementById('zoomIn');
+  <button id="zoomIn" disabled aria-label="Увеличить">
+    +
+  </button>
 
-      let pdf = null;
-      let pageNumber = 1;
-      let zoom = 1;
-      let sequence = 0;
-      let activeRender = null;
-      let queue = Promise.resolve();
-      let resizeTimeout;
+  <button id="fitPage" disabled>
+    По странице
+  </button>
+</nav>
 
-      const updateControls = () => {
-        const ready = !!pdf;
-        counter.textContent = ready ? `${pageNumber} / ${pdf.numPages}` : '— / —';
-        prev.disabled = !ready || pageNumber <= 1;
-        next.disabled = !ready || pageNumber >= pdf.numPages;
-        zoomOut.disabled = !ready || zoom <= 0.65;
-        zoomIn.disabled = !ready || zoom >= 2.5;
-      };
+<main id="viewer">
+  <div id="message" role="status">
+    Загружаем документ…
+  </div>
+  <div id="pages"></div>
+</main>
 
-      async function render(sequenceNumber) {
-        if (!pdf || sequenceNumber !== sequence) return;
-        const page = await pdf.getPage(pageNumber);
-        if (sequenceNumber !== sequence) return;
+<div id="downloadPanel">
+  <h3 id="downloadStatus">Подготовка файла…</h3>
 
-        const widthAtOne = page.getViewport({ scale: 1 }).width;
-        const fitWidth = Math.max(150, viewer.clientWidth - 28);
-        const viewport = page.getViewport({ scale: fitWidth / widthAtOne * zoom });
-        const resolution = Math.min(
-          window.devicePixelRatio || 1,
-          2,
-          Math.sqrt(6500000 / (viewport.width * viewport.height))
-        );
-        if (sequenceNumber !== sequence) return;
+  <a id="downloadLink" href="#">
+    Скачать файл
+  </a>
 
-        canvas.width = Math.max(1, Math.floor(viewport.width * resolution));
-        canvas.height = Math.max(1, Math.floor(viewport.height * resolution));
-        canvas.style.width = `${viewport.width}px`;
-        canvas.style.height = `${viewport.height}px`;
-        canvas.hidden = false;
-        message.hidden = true;
+  <p>
+    Если скачивание не началось автоматически,
+    нажмите кнопку выше.
+  </p>
+</div>
 
-        const context = canvas.getContext('2d');
-        if (!context) throw new Error('Canvas недоступен');
-        activeRender = page.render({
-          canvasContext: context,
-          viewport,
-          transform: resolution !== 1 ? [resolution, 0, 0, resolution, 0, 0] : null
-        });
-        try {
-          await activeRender.promise;
-        } catch (error) {
-          if (error?.name !== 'RenderingCancelledException') throw error;
-        } finally {
-          activeRender = null;
-        }
+<script type="module">
+  const params = new URLSearchParams(location.search);
+  const file = params.get("file") || "";
+  const downloadMode = params.get("download") === "1";
+
+  // Разрешены только файлы из этого каталога
+  const validFile =
+    /^[a-zA-Z0-9._,-]+\.(pdf|xls)$/i.test(file) &&
+    !file.includes("..");
+
+  const fileUrl = validFile
+    ? new URL(encodeURIComponent(file), location.href).href
+    : "";
+
+  const viewer = document.getElementById("viewer");
+  const pagesContainer = document.getElementById("pages");
+  const message = document.getElementById("message");
+  const counter = document.getElementById("pageCounter");
+  const zoomOut = document.getElementById("zoomOut");
+  const zoomIn = document.getElementById("zoomIn");
+  const fitButton = document.getElementById("fitPage");
+  const zoomValue = document.getElementById("zoomValue");
+
+  if (!validFile) {
+    message.textContent = "Неверное имя файла.";
+  } else if (downloadMode) {
+    startDownload();
+  } else if (!/\.pdf$/i.test(file)) {
+    message.textContent = "Предпросмотр доступен только для PDF.";
+  } else {
+    startViewer();
+  }
+
+  // СКАЧИВАНИЕ ЧЕРЕЗ ТОТ ЖЕ ДОМЕН GITHUB
+  async function startDownload() {
+    document.body.classList.add("downloading");
+
+    const status = document.getElementById("downloadStatus");
+    const link = document.getElementById("downloadLink");
+
+    try {
+      const response = await fetch(fileUrl);
+
+      if (!response.ok) {
+        throw new Error("HTTP " + response.status);
       }
 
-      function requestRender() {
-        const current = ++sequence;
-        if (activeRender) activeRender.cancel();
-        queue = queue.catch(() => {}).then(() => render(current)).catch(error => {
-          message.hidden = false;
-          message.textContent = 'Не удалось отобразить страницу. Нажмите «Скачать», чтобы открыть PDF отдельно.';
-          console.error('Ошибка PDF.js:', error);
-        });
-      }
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
 
-      function changePage(delta) {
-        if (!pdf) return;
-        const target = Math.max(1, Math.min(pdf.numPages, pageNumber + delta));
-        if (target === pageNumber) return;
-        pageNumber = target;
-        viewer.scrollTop = 0;
-        viewer.scrollLeft = 0;
-        updateControls();
-        requestRender();
-      }
+      link.href = blobUrl;
+      link.download = file;
 
-      prev.addEventListener('click', () => changePage(-1));
-      next.addEventListener('click', () => changePage(1));
-      zoomOut.addEventListener('click', () => {
-        zoom = Math.max(0.6, Math.round((zoom - 0.2) * 10) / 10);
-        updateControls(); requestRender();
-      });
-      zoomIn.addEventListener('click', () => {
-        zoom = Math.min(2.6, Math.round((zoom + 0.2) * 10) / 10);
-        updateControls(); requestRender();
-      });
+      status.textContent = "Файл готов к скачиванию";
+      link.click();
 
-      // На телефоне листать страницы можно также горизонтальным свайпом.
-      let startX = 0, startY = 0;
-      viewer.addEventListener('touchstart', event => {
-        if (event.touches.length !== 1) return;
-        startX = event.touches[0].clientX;
-        startY = event.touches[0].clientY;
-      }, { passive: true });
-      viewer.addEventListener('touchend', event => {
-        if (event.changedTouches.length !== 1) return;
-        const dx = event.changedTouches[0].clientX - startX;
-        const dy = event.changedTouches[0].clientY - startY;
-        if (Math.abs(dx) > 90 && Math.abs(dx) > 1.8 * Math.abs(dy)) {
-          changePage(dx < 0 ? 1 : -1);
-        }
-      }, { passive: true });
+      window.addEventListener("pagehide", function () {
+        URL.revokeObjectURL(blobUrl);
+      }, { once: true });
 
-      window.addEventListener('resize', () => {
-        clearTimeout(resizeTimeout);
-        resizeTimeout = setTimeout(() => { if (pdf) requestRender(); }, 200);
-      });
-
-      try {
-        const loadingTask = pdfjsLib.getDocument({ url: fileUrl });
-        pdf = await loadingTask.promise;
-        updateControls();
-        requestRender();
-      } catch (error) {
-        message.hidden = false;
-        message.textContent = 'Не удалось загрузить PDF. Проверьте имя файла и попробуйте открыть его по кнопке «Скачать».';
-        console.error('Ошибка загрузки PDF:', error);
-      }
+    } catch (error) {
+      status.textContent = "Не удалось подготовить скачивание";
+      link.href = fileUrl;
+      link.textContent = "Открыть файл";
+      console.error(error);
     }
-  </script>
+  }
+
+  // ПРОСМОТР PDF
+  async function startViewer() {
+    try {
+      const pdfjsLib = await import(
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs"
+      );
+
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+
+      const loadingTask = pdfjsLib.getDocument({
+        url: fileUrl
+      });
+
+      const pdf = await loadingTask.promise;
+      const firstPage = await pdf.getPage(1);
+      const firstViewport = firstPage.getViewport({ scale: 1 });
+
+      let zoom = 1;
+      let generation = 0;
+      let renderQueue = Promise.resolve();
+      let activeRender = null;
+      let scheduled = false;
+      let resizeTimer;
+
+      message.hidden = true;
+
+      // Создаём места для всех страниц
+      const items = [];
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const element = document.createElement("section");
+        element.className = "pdf-page";
+        element.textContent = "Страница " + i;
+        element.setAttribute("aria-label", "Страница " + i);
+
+        pagesContainer.appendChild(element);
+
+        items.push({
+          number: i,
+          element,
+          width: firstViewport.width,
+          height: firstViewport.height,
+          queuedGeneration: -1,
+          renderedGeneration: -1
+        });
+      }
+
+      // Подгоняем каждую страницу и по ширине, и по высоте
+      function getDimensions(item) {
+        const maxWidth = Math.max(160, viewer.clientWidth - 32);
+        const maxHeight = Math.max(180, viewer.clientHeight - 32);
+
+        const fitScale = Math.min(
+          maxWidth / item.width,
+          maxHeight / item.height
+        );
+
+        const scale = fitScale * zoom;
+
+        return {
+          scale,
+          width: item.width * scale,
+          height: item.height * scale
+        };
+      }
+
+      function setPageSize(item) {
+        const dimensions = getDimensions(item);
+
+        item.element.style.width =
+          dimensions.width + "px";
+
+        item.element.style.height =
+          dimensions.height + "px";
+      }
+
+      function updateZoomControls() {
+        zoomValue.textContent = Math.round(zoom * 100) + "%";
+        zoomOut.disabled = zoom <= 0.6;
+        zoomIn.disabled = zoom >= 2.4;
+        fitButton.disabled = Math.abs(zoom - 1) < 0.01;
+      }
+
+      function isNearViewport(item) {
+        const rect = item.element.getBoundingClientRect();
+        const area = viewer.getBoundingClientRect();
+        const margin = viewer.clientHeight;
+
+        return rect.bottom >= area.top - margin &&
+               rect.top <= area.bottom + margin;
+      }
+
+      // Отображаем только близкие к экрану страницы,
+      // чтобы длинные PDF не занимали всю память телефона
+      function renderPage(item) {
+        if (
+          item.renderedGeneration === generation ||
+          item.queuedGeneration === generation
+        ) return;
+
+        const currentGeneration = generation;
+        item.queuedGeneration = currentGeneration;
+
+        renderQueue = renderQueue
+          .catch(() => {})
+          .then(async function () {
+
+            if (
+              currentGeneration !== generation ||
+              !isNearViewport(item)
+            ) return;
+
+            const page = await pdf.getPage(item.number);
+
+            if (currentGeneration !== generation) return;
+
+            const original = page.getViewport({ scale: 1 });
+
+            item.width = original.width;
+            item.height = original.height;
+            setPageSize(item);
+
+            const dimensions = getDimensions(item);
+            const viewport = page.getViewport({
+              scale: dimensions.scale
+            });
+
+            const pixelRatio = Math.max(1, Math.min(
+              window.devicePixelRatio || 1,
+              2,
+              Math.sqrt(6000000 /
+                (viewport.width * viewport.height))
+            ));
+
+            const canvas = document.createElement("canvas");
+
+            canvas.width = Math.max(
+              1,
+              Math.floor(viewport.width * pixelRatio)
+            );
+
+            canvas.height = Math.max(
+              1,
+              Math.floor(viewport.height * pixelRatio)
+            );
+
+            const context = canvas.getContext("2d");
+
+            if (!context) {
+              throw new Error("Canvas недоступен");
+            }
+
+            const task = page.render({
+              canvasContext: context,
+              viewport,
+              transform: pixelRatio !== 1
+                ? [pixelRatio, 0, 0, pixelRatio, 0, 0]
+                : undefined
+            });
+
+            activeRender = task;
+
+            try {
+              await task.promise;
+            } catch (error) {
+              if (error.name === "RenderingCancelledException") {
+                return;
+              }
+              throw error;
+            } finally {
+              if (activeRender === task) {
+                activeRender = null;
+              }
+            }
+
+            if (currentGeneration !== generation) {
+              canvas.width = 0;
+              canvas.height = 0;
+              return;
+            }
+
+            item.element.replaceChildren(canvas);
+            item.renderedGeneration = currentGeneration;
+          })
+          .catch(function (error) {
+            if (currentGeneration === generation) {
+              console.error("Ошибка страницы:", error);
+              item.element.textContent =
+                "Не удалось отобразить страницу " + item.number;
+            }
+          })
+          .finally(function () {
+            if (item.queuedGeneration === currentGeneration) {
+              item.queuedGeneration = -1;
+            }
+          });
+      }
+
+      // Находим видимые страницы и обновляем счётчик
+      function updateVisiblePages() {
+        const area = viewer.getBoundingClientRect();
+        const center = (area.top + area.bottom) / 2;
+
+        let closest = 1;
+        let bestDistance = Infinity;
+
+        for (const item of items) {
+          const rect = item.element.getBoundingClientRect();
+
+          const distance = Math.abs(
+            (rect.top + rect.bottom) / 2 - center
+          );
+
+          if (distance < bestDistance) {
+            closest = item.number;
+            bestDistance = distance;
+          }
+
+          if (isNearViewport(item)) {
+            renderPage(item);
+          } else if (
+            item.renderedGeneration === generation &&
+            (rect.bottom < area.top - viewer.clientHeight * 3 ||
+             rect.top > area.bottom + viewer.clientHeight * 3)
+          ) {
+            // Освобождаем память дальних страниц
+            const canvas = item.element.querySelector("canvas");
+
+            if (canvas) {
+              canvas.width = 0;
+              canvas.height = 0;
+              canvas.remove();
+            }
+
+            item.element.textContent = "Страница " + item.number;
+            item.renderedGeneration = -1;
+          }
+        }
+
+        counter.textContent =
+          "Стр. " + closest + " / " + pdf.numPages;
+      }
+
+      function scheduleUpdate() {
+        if (scheduled) return;
+
+        scheduled = true;
+
+        requestAnimationFrame(function () {
+          scheduled = false;
+          updateVisiblePages();
+        });
+      }
+
+      // Перерасчёт размеров при масштабе или повороте экрана
+      function relayout() {
+        const oldMaxScroll = Math.max(
+          1,
+          viewer.scrollHeight - viewer.clientHeight
+        );
+
+        const position = viewer.scrollTop / oldMaxScroll;
+
+        generation++;
+
+        if (activeRender) {
+          activeRender.cancel();
+        }
+
+        for (const item of items) {
+          const canvas = item.element.querySelector("canvas");
+
+          if (canvas) {
+            canvas.width = 0;
+            canvas.height = 0;
+          }
+
+          item.element.textContent = "Страница " + item.number;
+          item.renderedGeneration = -1;
+          item.queuedGeneration = -1;
+
+          setPageSize(item);
+        }
+
+        const newMaxScroll = Math.max(
+          0,
+          viewer.scrollHeight - viewer.clientHeight
+        );
+
+        viewer.scrollTop = position * newMaxScroll;
+
+        updateZoomControls();
+        scheduleUpdate();
+      }
+
+      zoomOut.addEventListener("click", function () {
+        zoom = Math.max(0.6, Math.round((zoom - 0.2) * 10) / 10);
+        relayout();
+      });
+
+      zoomIn.addEventListener("click", function () {
+        zoom = Math.min(2.4, Math.round((zoom + 0.2) * 10) / 10);
+        relayout();
+      });
+
+      fitButton.addEventListener("click", function () {
+        zoom = 1;
+        relayout();
+      });
+
+      viewer.addEventListener("scroll", scheduleUpdate, {
+        passive: true
+      });
+
+      window.addEventListener("resize", function () {
+        clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(relayout, 180);
+      });
+
+      for (const item of items) {
+        setPageSize(item);
+      }
+
+      updateZoomControls();
+      scheduleUpdate();
+
+    } catch (error) {
+      message.hidden = false;
+      message.textContent =
+        "Не удалось загрузить PDF. Попробуйте открыть файл отдельно.";
+      console.error("PDF.js:", error);
+    }
+  }
+</script>
+
 </body>
 </html>
